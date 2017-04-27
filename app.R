@@ -1,47 +1,68 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
+#########################################################################
+####    shiny::runGitHub("vvrzheshch-hw3", "usfviz", subdir = "")    ####
+#########################################################################
+
+rm(list = ls())
+cat("\014")
 
 library(shiny)
+library(plotly)
+library(plyr)
+library(reshape2)
+library(heatmaply)
+library(pairsD3)
+library(ggplot2)
+library(GGally)
+
+# setwd('/Users/vv/Google Drive/MSAN2017/SPRING_2017/MSAN-622-02_Data_and_Information_Visualization/vvrzheshch-hw3/')
+df <- read.csv('dataset_Facebook.csv', sep=';')
 
 # Define UI for application that draws a histogram
-ui <- fluidPage(
-   
-   # Application title
-   titlePanel("Old Faithful Geyser Data"),
-   
-   # Sidebar with a slider input for number of bins 
-   sidebarLayout(
-      sidebarPanel(
-         sliderInput("bins",
-                     "Number of bins:",
-                     min = 1,
-                     max = 50,
-                     value = 30)
-      ),
+ui <-pageWithSidebar(
+  headerPanel("Valentin Vrzheshch HW3"),
+    sidebarPanel(
+      selectInput("hm.x", label = h4("Select column for x-axis"), choices = names(df), selected = 'Type'),
+      selectInput("hm.y", label = h4("Select column for y-axis"), choices = names(df), selected = 'Paid'),
+      selectInput("hm.z", label = h4("Select column for color"), choices = names(df), selected = 'like')
+    ),
       
       # Show a plot of the generated distribution
-      mainPanel(
-         plotOutput("distPlot")
+    mainPanel(
+      navbarPage("",
+        tabPanel("Heatmap",
+          plotlyOutput("distPlot"),
+          verbatimTextOutput("Summary")),
+        tabPanel("Scatterplot Matrix", pairsD3Output("scatterplot", width = '800', height = '450')),
+        tabPanel("Parallel Coordinates Plot", plotOutput("par_plot"))
       )
-   )
-)
+    )
+  )
+
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
+  sub_df <- reactive({
+    acast(
+      na.omit(df[, c(input$hm.x, input$hm.y, input$hm.z)]),
+      paste0(input$hm.x, ' ~ ', input$hm.y), value.var = input$hm.z)
+  })
+  
+  output$distPlot <- renderPlotly({
+    heatmaply(sub_df(), k_col = 2, k_row = 2, na.value = "grey50") %>%
+      layout(margin = list(l = 130, b = 40))
+    })
+
    
-   output$distPlot <- renderPlot({
-      # generate bins based on input$bins from ui.R
-      x    <- faithful[, 2] 
-      bins <- seq(min(x), max(x), length.out = input$bins + 1)
-      
-      # draw the histogram with the specified number of bins
-      hist(x, breaks = bins, col = 'darkgray', border = 'white')
+   output$Summary <- renderPrint({sub_df()})
+
+   output$scatterplot <- renderPairsD3({
+     df_2 <- sub_df()
+     pairsD3(df_2, group = df_2[,2])
+  })
+   
+   output$par_plot <- renderPlot({
+     df_2 <- df[, c(input$hm.x, input$hm.y, input$hm.z)]
+     ggparcoord(data = df_2, scale = 'uniminmax', groupColumn = input$hm.z)
    })
 }
 
